@@ -58,6 +58,7 @@ public class BlueGigaSerialHandler {
     private Thread parserThread = null;
 
     private ExecutorService executor = Executors.newCachedThreadPool();
+    private ExecutorService notificationsService = Executors.newCachedThreadPool();
 
     /**
      * Transaction listeners are used internally to correlate the commands and responses
@@ -185,8 +186,14 @@ public class BlueGigaSerialHandler {
      * @param timeout milliseconds to wait
      */
     public void close(long timeout) {
-        this.close = true;
+        close = true;
         executor.shutdownNow();
+        notificationsService.shutdownNow();
+        if (timerTask != null) {
+            timerTask.cancel();
+            timerTask = null;
+        }
+        timer.cancel();
         try {
             parserThread.interrupt();
             parserThread.join(timeout);
@@ -458,7 +465,7 @@ public class BlueGigaSerialHandler {
         synchronized (this) {
             // Notify the listeners
             for (final BlueGigaEventListener listener : eventListeners) {
-                NotificationService.execute(new Runnable() {
+                notificationsService.execute(new Runnable() {
                     @Override
                     public void run() {
                         listener.bluegigaEventReceived(response);
